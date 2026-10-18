@@ -1,0 +1,110 @@
+# Music Blocks（音乐拼块）· 懒猫 LPK V2 运行清单
+#
+# 形态：纯静态站点（上游仓库根目录即 Web 根，官方 Pages 部署同款），
+# 由平台以 file:// 路由直接分发，无服务容器、无数据库、无应用账号。
+# 作品保存在浏览器本地存储，也可导出为 HTML / MIDI 文件。
+#
+# 注入说明：
+# 1. lazycat-file-bridge：官方《自动拦截文件选择器》要求的同源文件桥（request 阶段）。
+# 2. mb-strip-conditional-headers / mb-html-no-store：HTML 缓存修正。静态页带
+#    ETag/Last-Modified 时客户端可能用条件请求拿到 304 复用旧页面，导致平台注入不生效。
+# 3. open-save-chooser：官方网盘文件选择器（browser 阶段），接管 input[type=file]
+#    与带 download 属性的 blob:/data: 链接，覆盖「打开项目」与「导出 HTML / MIDI」。
+# 4. mb-open-from-netdisk：网盘右键打开（file_handler 的 open 动作），
+#    把 %u 指向的网盘文件取回后注入应用打开入口 #myOpenFile。
+usage: |
+  打开应用即可用彩色积木编程演奏音乐：从左侧积木面板拖出积木，点击「播放」试听。
+  界面语言取自浏览器语言，也可以在界面里切换成简体中文。
+  作品保存在浏览器本地；用「保存」菜单可导出 HTML 或 MIDI，导出与打开文件时都能选择
+  「本地文件」或「懒猫网盘」。网盘中右键 .ta/.tb/.mid/.midi 文件可直接用本应用打开。
+  移动端暂不支持，请使用桌面端（微服客户端的桌面系统，或用桌面浏览器打开应用地址）。
+  上游对窄屏（窗口宽度小于 768 像素）只提供「仅播放」模式，无法拖拽积木编程，因此本应用不声明移动端支持。
+application:
+  subdomain: musicblocks
+  # 网盘右键「用音乐拼块打开」：把作品或乐谱文件交回本应用
+  file_handler:
+    mime:
+      - x-lzc-extension/ta
+      - x-lzc-extension/tb
+      - x-lzc-extension/mid
+      - x-lzc-extension/midi
+    actions:
+      open: /?lzcOpenFile=%u
+  routes:
+    - /=file:///lzcapp/pkg/content/dist
+  injects:
+    # ── 网盘文件桥（request 阶段，官方《自动拦截文件选择器》专题）───────────
+    - id: lazycat-file-bridge
+      'on': request
+      auth_required: false
+      when:
+        - /__lazycat_file_bridge/*
+      do:
+        - src: |
+            const bridgePrefix = "/__lazycat_file_bridge";
+            const requestHost = String(ctx.request.host || "").split(":")[0].toLowerCase();
+            const firstDot = requestHost.indexOf(".");
+            const method = String(ctx.request.method || "").toUpperCase();
+            if (firstDot <= 0 || !requestHost.endsWith(".heiyu.space") ||
+                !["GET", "HEAD", "PUT"].includes(method)) {
+              ctx.response.send(["GET", "HEAD", "PUT"].includes(method) ? 400 : 405,
+                "Invalid LazyCat file bridge request");
+              return;
+            }
+            const boxDomain = requestHost.slice(firstDot + 1);
+            ctx.headers.del("Origin");
+            ctx.headers.del("Referer");
+            ctx.proxy.to("https://file." + boxDomain, {
+              path: "/files/home" + ctx.request.path.slice(bridgePrefix.length),
+              query: ctx.request.raw_query,
+              use_target_host: true,
+              timeout_ms: 120000,
+              on_fail: "error",
+            });
+    # ── HTML 缓存修正：request 阶段去掉条件请求头（只有 HTML 请求需要）──────
+    - id: mb-strip-conditional-headers
+      'on': request
+      auth_required: false
+      when:
+        - /*
+      do: |
+        var accept = String(ctx.headers.get("Accept") || "");
+        if (accept.indexOf("text/html") < 0) return;
+        ctx.headers.del("If-None-Match");
+        ctx.headers.del("If-Modified-Since");
+    # ── HTML 缓存修正：response 阶段对 HTML 输出 no-store 并去掉 ETag ────────
+    - id: mb-html-no-store
+      'on': response
+      auth_required: false
+      when:
+        - /*
+      do: |
+        if (ctx.status !== 200) return;
+        var ct = String(ctx.headers.get("Content-Type") || "");
+        if (ct.indexOf("text/html") < 0) return;
+        ctx.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+        ctx.headers.del("ETag");
+        ctx.headers.del("Last-Modified");
+    # ── 网盘右键「用音乐拼块打开」───────────────────────────────────────────
+    - id: mb-open-from-netdisk
+      'on': browser
+      when:
+        - /*
+      do:
+        - src: file:///lzcapp/pkg/content/lazycat-injects/musicblocks-open-from-netdisk.js
+    # ── 官方网盘文件选择器（browser 阶段）────────────────────────────────────
+    - id: open-save-chooser
+      'on': browser
+      when:
+        - /*
+      do:
+        - src: file:///lzcapp/pkg/content/lazycat-injects/lzc-file-chooser-inject.scoped.js
+          params:
+            diskRoot: /_lzc/files/home
+            fileBridgeRoot: /__lazycat_file_bridge
+            fallbackMime: application/octet-stream
+            locale: auto
+            hooks:
+              fileSystemAccess: true
+              fileInput: true
+              downloadAnchor: true

@@ -1,0 +1,13 @@
+manifest: ./lzc-manifest.yml
+
+# buildscript: 拉取固定上游 commit 并把 Web 根目录站成静态产物
+buildscript: ./build.sh
+
+# contentdir: 打包进 lpk 的内容（dist/ 为站点，lazycat-injects/ 为注入脚本）
+contentdir: ./content
+
+# pkgout: lpk 包的输出路径
+pkgout: ./.lazycat-build/
+
+# icon: 上游官方 512x512 应用图标
+icon: ./icon.png

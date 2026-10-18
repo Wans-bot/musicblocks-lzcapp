@@ -1,0 +1,21 @@
+package: cloud.lazycat.app.musicblocks
+version: 3.8.0-6
+name: 音乐拼块
+description: "用彩色积木编程创作音乐：拖拽积木搭出旋律、节奏与互动作品，全程在浏览器中运行。作品保存在本机浏览器；移动端暂不支持，请使用桌面端。"
+author: Sugar Labs
+license: AGPL-3.0
+homepage: https://github.com/sugarlabs/musicblocks
+min_os_version: 1.5.0
+unsupported_platforms:
+  - android
+  - ios
+locales:
+  zh:
+    name: "音乐拼块"
+    description: "用彩色积木编程创作音乐：拖拽积木搭出旋律、节奏与互动作品，全程在浏览器中运行。作品保存在本机浏览器；移动端暂不支持，请使用桌面端。"
+  zh_CN:
+    name: "音乐拼块"
+    description: "用彩色积木编程创作音乐：拖拽积木搭出旋律、节奏与互动作品，全程在浏览器中运行。作品保存在本机浏览器；移动端暂不支持，请使用桌面端。"
+  en:
+    name: "Music Blocks"
+    description: "Learn to code through music: snap colorful blocks together to build melodies, rhythms and interactive pieces, all in the browser. Projects are stored in the local browser; mobile platforms are not supported, please use the desktop client."
